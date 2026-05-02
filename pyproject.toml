@@ -1,0 +1,14 @@
+[project]
+name = "gpt-image2-ricksf"
+description = "GPT Image 2 生图节点，支持汇取云和 Runninghub 两大 API 生图渠道。作者：@ricksf"
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/T8mars/gpt-image2-ricksf"
+
+[tool.comfy]
+PublisherId = "ricksf"
+DisplayName = "gpt-image2-ricksf"
+Icon = "https://avatars.githubusercontent.com/u/96167788"
+includes = []
