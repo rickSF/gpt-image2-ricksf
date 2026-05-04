@@ -182,7 +182,7 @@ class RicksfGPTImage2ComprehensiveNode:
         finally:
             os.unlink(tmp_path)
 
-    def _huiqu_generate(self, api_key, model, prompt, image_base64_list, is_img2img, pbar):
+    def _huiqu_generate(self, api_key, model, prompt, aspect_ratio, image_base64_list, is_img2img, pbar):
         """汇取云生图（文生图/图生图）
         - 文生图：application/json
         - 图生图：application/json（image 字段为 base64 字符串数组）
@@ -195,12 +195,25 @@ class RicksfGPTImage2ComprehensiveNode:
         print(f"[汇取云] URL: {url}")
         print(f"[汇取云] Model: {model}, 图生图: {is_img2img}")
 
+        # 汇取云的 size 参数：1024x1024, 1536x1024, 1024x1536, 2048x2048, 2048x1152, 3840x2160, 2160x3840, 1920x1080, 1080x1920
+        size_map = {
+            "1:1": "1024x1024",
+            "16:9": "1536x1024",
+            "9:16": "1024x1536",
+            "4:3": "1024x768",
+            "3:4": "768x1024",
+            "3:2": "1536x1024",
+            "2:3": "1024x1536",
+            "21:9": "1920x1080",
+        }
+        size_value = size_map.get(aspect_ratio, "1024x1024")
+
         # 构建 payload
         payload = {
             "model": model,
             "prompt": prompt,
             "n": 1,
-            "size": "auto",
+            "size": size_value,
             "response_format": "url"
         }
 
@@ -208,6 +221,8 @@ class RicksfGPTImage2ComprehensiveNode:
         if is_img2img and image_base64_list:
             payload["image"] = image_base64_list
             print(f"[汇取云] 图生图添加 {len(image_base64_list)} 张图片")
+
+        print(f"[汇取云] size={size_value}, aspect_ratio={aspect_ratio}")
 
         json_data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
@@ -406,9 +421,9 @@ class RicksfGPTImage2ComprehensiveNode:
                             image_base64 = image_base64.split("base64,")[1]
                         image_base64_list.append(image_base64)
                     print(f"[ricksf节点] 已转换 {len(image_base64_list)} 张参考图为 base64")
-                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, image_base64_list, True, pbar)
+                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, aspect_ratio, image_base64_list, True, pbar)
                 else:
-                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, [], False, pbar)
+                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, aspect_ratio, [], False, pbar)
 
             elif api_source == "Runninghub":
                 image_urls = []
