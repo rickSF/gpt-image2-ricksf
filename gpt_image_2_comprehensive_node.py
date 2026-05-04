@@ -88,7 +88,7 @@ class RicksfGPTImage2ComprehensiveNode:
                 "🖼️ 参考图4": ("IMAGE",),
                 "📐 比例": (["1024x1024", "1536x1024", "1024x1536", "2048x2048", "2048x1152", "3840x2160", "2160x3840", "1920x1080", "1080x1920", "1:1", "16:9", "9:16", "4:3", "3:4", "21:9"], {"default": "1024x1024"}),
                 "🖼️ 分辨率": (["1k", "2k", "4k"], {"default": "1k"}),
-                "🤖 模型": (["gpt-image-2", "gpt-image-2-FL", "gpt-image-2「备用」"], {"default": "gpt-image-2"}),
+                "🤖 模型": (["gpt-image-2", "gpt-image-2-FL", "gpt-image-2-线路A", "gpt-image-2「备用」"], {"default": "gpt-image-2"}),
             }
         }
 
