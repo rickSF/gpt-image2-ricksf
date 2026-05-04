@@ -185,7 +185,7 @@ class RicksfGPTImage2ComprehensiveNode:
     def _huiqu_generate(self, api_key, model, prompt, image_base64_list, is_img2img, pbar):
         """汇取云生图（文生图/图生图）
         - 文生图：application/json
-        - 图生图：multipart/form-data（图片作为二进制上传）
+        - 图生图：application/json（image 字段为 base64 字符串数组）
         """
         import urllib.request
 
@@ -195,68 +195,30 @@ class RicksfGPTImage2ComprehensiveNode:
         print(f"[汇取云] URL: {url}")
         print(f"[汇取云] Model: {model}, 图生图: {is_img2img}")
 
+        # 构建 payload
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": "auto",
+            "response_format": "url"
+        }
+
+        # 图生图：添加 image 字段（base64 字符串数组）
         if is_img2img and image_base64_list:
-            # 图生图：使用 multipart/form-data
-            # 参考图作为 form field "image" 上传（多个图片多个 field）
-            boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+            payload["image"] = image_base64_list
+            print(f"[汇取云] 图生图添加 {len(image_base64_list)} 张图片")
 
-            body_parts = []
-
-            # 添加 model
-            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}".encode())
-
-            # 添加 prompt
-            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\n{prompt}".encode())
-
-            # 添加 n
-            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"n\"\r\n\r\n1".encode())
-
-            # 添加 size
-            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"size\"\r\n\r\nauto".encode())
-
-            # 添加 response_format
-            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\nurl".encode())
-
-            # 添加图片（每个图片一个 field）
-            for i, img_b64 in enumerate(image_base64_list):
-                # 解码 base64 获取二进制
-                img_data = base64.b64decode(img_b64.split(",")[1] if "," in img_b64 else img_b64)
-                body_parts.append(
-                    f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"image_{i}.png\"\r\nContent-Type: image/png\r\n\r\n".encode() + img_data
-                )
-
-            body_parts.append(f"--{boundary}--\r\n".encode())
-            body = b"\r\n".join(body_parts)
-
-            req = urllib.request.Request(
-                url,
-                data=body,
-                method="POST",
-                headers={
-                    "Content-Type": f"multipart/form-data; boundary={boundary}",
-                    "Authorization": f"Bearer {api_key.strip()}"
-                }
-            )
-            print(f"[汇取云] 图生图使用 multipart/form-data，上传 {len(image_base64_list)} 张图片")
-        else:
-            # 文生图：使用 application/json
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "n": 1,
-                "size": "auto",
-                "response_format": "url"
+        json_data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=json_data,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key.strip()}"
             }
-            json_data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=json_data,
-                method="POST",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {api_key.strip()}"
-                }
-            )
+        )
 
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
