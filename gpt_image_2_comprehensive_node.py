@@ -124,15 +124,15 @@ class RicksfGPTImage2ComprehensiveNode:
             return None
 
     def _image_to_base64(self, image_tensor):
-        """将 IMAGE tensor 转换为 base64 data URI"""
-        img_array = image_tensor[0].cpu().numpy()
+        """将 IMAGE tensor 转换为 base64（不含 data URI 前缀）"""
+        img_array = image_tensor[0].cpu().numpy()  # [H, W, C], range [0, 1]
         img_array = (img_array * 255).clip(0, 255).astype(np.uint8)
-        img_pil = Image.fromarray(img_array)
-        if img_pil.mode != "RGB":
-            img_pil = img_pil.convert("RGB")
+        img_pil = Image.fromarray(img_array, mode='RGB')
         buf = BytesIO()
-        img_pil.save(buf, format="PNG")
-        return base64.b64encode(buf.getvalue()).decode("utf-8")
+        img_pil.save(buf, format='PNG')
+        b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
+        print(f"[ricksf节点] 图片转换: shape={img_array.shape}, base64长度={len(b64_str)}")
+        return b64_str
 
     def _upload_image_to_runninghub(self, image_tensor, api_key):
         """上传图片到 Runninghub，返回 download_url"""
@@ -221,10 +221,12 @@ class RicksfGPTImage2ComprehensiveNode:
         if is_img2img and image_base64_list:
             payload["image"] = image_base64_list
             print(f"[汇取云] 图生图添加 {len(image_base64_list)} 张图片")
+            print(f"[汇取云] image字段长度: {len(image_base64_list[0]) if image_base64_list else 0}")
 
-        print(f"[汇取云] size={size_value}, aspect_ratio={aspect_ratio}")
+        print(f"[汇取云] size={size_value}, aspect_ratio={aspect_ratio}, is_img2img={is_img2img}")
+        print(f"[汇取云] payload keys: {list(payload.keys())}")
 
-        json_data = json.dumps(payload).encode("utf-8")
+        json_data = json.dumps(payload, ensure_ascii=False)
         req = urllib.request.Request(
             url,
             data=json_data,
