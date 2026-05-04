@@ -182,37 +182,81 @@ class RicksfGPTImage2ComprehensiveNode:
         finally:
             os.unlink(tmp_path)
 
-    def _huiqu_generate(self, api_key, model, prompt, image_urls, is_img2img, pbar):
-        """汇取云生图（文生图/图生图）"""
+    def _huiqu_generate(self, api_key, model, prompt, image_base64_list, is_img2img, pbar):
+        """汇取云生图（文生图/图生图）
+        - 文生图：application/json
+        - 图生图：multipart/form-data（图片作为二进制上传）
+        """
         import urllib.request
 
-        if is_img2img:
-            # 汇取云图生图需要上传图片到 Runninghub 获取 URL
-            return None, "图生图需要上传图片，请确保 Runninghub 可用"
-
         url = f"{HUIQU_BASE_URL}/images/generations"
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "n": 1,
-            "size": "auto",
-            "response_format": "url"
-        }
 
         print(f"[汇取云] 发送请求...")
         print(f"[汇取云] URL: {url}")
         print(f"[汇取云] Model: {model}, 图生图: {is_img2img}")
 
-        json_data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=json_data,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key.strip()}"
+        if is_img2img and image_base64_list:
+            # 图生图：使用 multipart/form-data
+            # 参考图作为 form field "image" 上传（多个图片多个 field）
+            boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+
+            body_parts = []
+
+            # 添加 model
+            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}".encode())
+
+            # 添加 prompt
+            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\n{prompt}".encode())
+
+            # 添加 n
+            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"n\"\r\n\r\n1".encode())
+
+            # 添加 size
+            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"size\"\r\n\r\nauto".encode())
+
+            # 添加 response_format
+            body_parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\nurl".encode())
+
+            # 添加图片（每个图片一个 field）
+            for i, img_b64 in enumerate(image_base64_list):
+                # 解码 base64 获取二进制
+                img_data = base64.b64decode(img_b64.split(",")[1] if "," in img_b64 else img_b64)
+                body_parts.append(
+                    f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"image_{i}.png\"\r\nContent-Type: image/png\r\n\r\n".encode() + img_data
+                )
+
+            body_parts.append(f"--{boundary}--\r\n".encode())
+            body = b"\r\n".join(body_parts)
+
+            req = urllib.request.Request(
+                url,
+                data=body,
+                method="POST",
+                headers={
+                    "Content-Type": f"multipart/form-data; boundary={boundary}",
+                    "Authorization": f"Bearer {api_key.strip()}"
+                }
+            )
+            print(f"[汇取云] 图生图使用 multipart/form-data，上传 {len(image_base64_list)} 张图片")
+        else:
+            # 文生图：使用 application/json
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "n": 1,
+                "size": "auto",
+                "response_format": "url"
             }
-        )
+            json_data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=json_data,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key.strip()}"
+                }
+            )
 
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -391,17 +435,16 @@ class RicksfGPTImage2ComprehensiveNode:
 
             if api_source == "汇取云":
                 if is_img2img:
-                    # 汇取云图生图需要先上传图片到 Runninghub 获取 URL
-                    upload_urls = []
+                    # 汇取云图生图：直接传 base64（不带 data:image/png;base64, 前缀）
+                    image_base64_list = []
                     for img in valid_images:
-                        upload_url = self._upload_image_to_runninghub(img, api_key)
-                        if upload_url:
-                            upload_urls.append(upload_url)
-                        else:
-                            return (blank_tensor, f"图片上传 Runninghub 失败", "", "")
-
-                    print(f"[ricksf节点] 已上传 {len(upload_urls)} 张图片到 Runninghub")
-                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, upload_urls, True, pbar)
+                        image_base64 = self._image_to_base64(img)
+                        # 去掉 data:image/png;base64, 前缀，汇取云只需要 base64 字符串
+                        if "base64," in image_base64:
+                            image_base64 = image_base64.split("base64,")[1]
+                        image_base64_list.append(image_base64)
+                    print(f"[ricksf节点] 已转换 {len(image_base64_list)} 张参考图为 base64")
+                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, image_base64_list, True, pbar)
                 else:
                     image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, [], False, pbar)
 
