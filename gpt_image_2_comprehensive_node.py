@@ -187,10 +187,10 @@ class RicksfGPTImage2ComprehensiveNode:
         import urllib.request
 
         if is_img2img:
-            url = f"{HUIQU_BASE_URL}/images/image-to-image"
-        else:
-            url = f"{HUIQU_BASE_URL}/images/generations"
+            # 汇取云图生图需要上传图片到 Runninghub 获取 URL
+            return None, "图生图需要上传图片，请确保 Runninghub 可用"
 
+        url = f"{HUIQU_BASE_URL}/images/generations"
         payload = {
             "model": model,
             "prompt": prompt,
@@ -198,9 +198,6 @@ class RicksfGPTImage2ComprehensiveNode:
             "size": "auto",
             "response_format": "url"
         }
-
-        if is_img2img and image_urls:
-            payload["imageUrls"] = image_urls
 
         print(f"[汇取云] 发送请求...")
         print(f"[汇取云] URL: {url}")
@@ -224,12 +221,6 @@ class RicksfGPTImage2ComprehensiveNode:
             print(f"[汇取云] HTTP错误: {e.code} - {e.reason}")
             error_body = e.read().decode("utf-8") if e.fp else ""
             print(f"[汇取云] 错误响应: {error_body[:500]}")
-
-            # 如果图生图失败，尝试上传图片到 Runninghub 获取 URL
-            if is_img2img and image_urls and any(u.startswith("data:") for u in image_urls):
-                print(f"[汇取云] 图生图 base64 方式失败，尝试上传到 Runninghub...")
-                return None, "图生图需要上传图片，请确保 Runninghub 可用"
-
             return None, f"API请求失败: {e.code} {e.reason}"
         except Exception as e:
             print(f"[汇取云] 请求异常: {e}")
@@ -399,32 +390,18 @@ class RicksfGPTImage2ComprehensiveNode:
             image_tensor = None
 
             if api_source == "汇取云":
-                image_urls = []
                 if is_img2img:
-                    # 汇取云图生图：先尝试 base64，如果失败则上传到 Runninghub 获取 URL
-                    base64_urls = []
+                    # 汇取云图生图需要先上传图片到 Runninghub 获取 URL
+                    upload_urls = []
                     for img in valid_images:
-                        image_base64 = self._image_to_base64(img)
-                        base64_urls.append(f"data:image/png;base64,{image_base64}")
-                    print(f"[ricksf节点] 已转换 {len(base64_urls)} 张参考图为 base64")
+                        upload_url = self._upload_image_to_runninghub(img, api_key)
+                        if upload_url:
+                            upload_urls.append(upload_url)
+                        else:
+                            return (blank_tensor, f"图片上传 Runninghub 失败", "", "")
 
-                    # 尝试使用 base64
-                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, base64_urls, True, pbar)
-
-                    if image_tensor is None and "base64" in result_info.lower():
-                        # base64 失败，尝试上传到 Runninghub
-                        print(f"[ricksf节点] 汇取云图生图 base64 失败，尝试上传到 Runninghub...")
-                        upload_urls = []
-                        for img in valid_images:
-                            upload_url = self._upload_image_to_runninghub(img, api_key)
-                            if upload_url:
-                                upload_urls.append(upload_url)
-                            else:
-                                return (blank_tensor, f"图片上传 Runninghub 失败", "", "")
-
-                        if upload_urls:
-                            print(f"[ricksf节点] 已上传 {len(upload_urls)} 张图片到 Runninghub")
-                            image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, upload_urls, True, pbar)
+                    print(f"[ricksf节点] 已上传 {len(upload_urls)} 张图片到 Runninghub")
+                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, upload_urls, True, pbar)
                 else:
                     image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, [], False, pbar)
 
