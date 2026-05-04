@@ -86,7 +86,7 @@ class RicksfGPTImage2ComprehensiveNode:
                 "🖼️ 参考图2": ("IMAGE",),
                 "🖼️ 参考图3": ("IMAGE",),
                 "🖼️ 参考图4": ("IMAGE",),
-                "📐 比例": (["auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9"], {"default": "auto"}),
+                "📐 比例": ("STRING", {"default": "1024x1024"}),
                 "🖼️ 分辨率": (["1k", "2k", "4k"], {"default": "1k"}),
                 "🤖 模型": (["gpt-image-2", "gpt-image-2-FL", "gpt-image-2「备用」"], {"default": "gpt-image-2"}),
             }
@@ -196,17 +196,8 @@ class RicksfGPTImage2ComprehensiveNode:
         print(f"[汇取云] Model: {model}, 图生图: {is_img2img}")
 
         # 汇取云的 size 参数：1024x1024, 1536x1024, 1024x1536, 2048x2048, 2048x1152, 3840x2160, 2160x3840, 1920x1080, 1080x1920
-        size_map = {
-            "1:1": "1024x1024",
-            "16:9": "1536x1024",
-            "9:16": "1024x1536",
-            "4:3": "1024x768",
-            "3:4": "768x1024",
-            "3:2": "1536x1024",
-            "2:3": "1024x1536",
-            "21:9": "1920x1080",
-        }
-        size_value = size_map.get(aspect_ratio, "1024x1024")
+        # 汇取云直接使用用户选择的 size（比例）
+        size_value = aspect_ratio
 
         # 构建 payload
         payload = {

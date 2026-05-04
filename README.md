@@ -53,8 +53,7 @@ git clone https://github.com/rickSF/gpt-image2-ricksf.git
 ```json
 {
   "huiqu_api_key": "你的汇取云API密钥",
-  "runninghub_api_key": "你的Runninghub API密钥",
-  "备注": "API密钥配置，优先读取此文件，没有则读取节点输入。成功运行一次后会根据节点输入自动更新对应渠道的Key。"
+  "runninghub_api_key": "你的Runninghub API密钥"
 }
 ```
 
@@ -72,9 +71,9 @@ git clone https://github.com/rickSF/gpt-image2-ricksf.git
 | API密钥 | API Key | 支持 config.json 读取 |
 | 提示词 | 图片生成描述 | |
 | 参考图1-4 | 参考图片（可选） | 有参考图自动切换图生图 |
-| 比例 | 输出图片比例 | auto / 1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 3:2 / 2:3 / 21:9 |
-| 分辨率 | 输出清晰度 | 1k / 2k / 4k |
-| 模型 | 选择模型 | 仅汇取云可用 |
+| 比例 | 输出图片比例（汇取云） | 1024x1024 / 1536x1024 / 1024x1536 / 2048x2048 / 2048x1152 / 3840x2160 / 2160x3840 / 1920x1080 / 1080x1920 |
+| 分辨率 | 输出清晰度（仅Runninghub） | 1k / 2k / 4k |
+| 模型 | 选择模型（仅汇取云） | gpt-image-2 / gpt-image-2-FL / gpt-image-2「备用」 |
 
 ---
 
@@ -85,6 +84,7 @@ git clone https://github.com/rickSF/gpt-image2-ricksf.git
 - **地址**：`https://api.bjhuiqu.net/v1/images/generations`
 - **认证**：`Authorization: Bearer <API_KEY>`
 - **Content-Type**：`application/json`
+- **比例参数**：直接使用 size 字段（如 `1024x1024`、`1536x1024` 等）
 - **图生图**：图片作为 base64 字符串数组通过 `image` 字段传递
 
 ### Runninghub
@@ -93,6 +93,7 @@ git clone https://github.com/rickSF/gpt-image2-ricksf.git
 - **图生图**：`POST https://www.runninghub.cn/openapi/v2/rhart-image-g-2/image-to-image`
 - **查询**：`POST https://www.runninghub.cn/openapi/v2/query`
 - **认证**：`Authorization: Bearer <API_KEY>`
+- **比例参数**：`aspectRatio` 字段（如 `1:1`、`16:9` 等）
 - **图生图**：图片作为 base64 data URI 数组通过 `imageUrls` 字段传递
 
 ---
@@ -102,7 +103,7 @@ git clone https://github.com/rickSF/gpt-image2-ricksf.git
 1. 配置 API Key（通过 config.json 或节点输入）
 2. 选择 API 渠道
 3. 输入提示词
-4. 选择比例和分辨率
+4. 选择比例
 5. 有参考图则自动进行图生图，无参考图则进行文生图
 
 ---
