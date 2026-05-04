@@ -1,80 +1,29 @@
 # gpt-image2-ricksf
 
-GPT Image 2 生图节点插件，支持**汇取云**和**Runninghub**两大 API 生图渠道。
+GPT Image 2 生图节点插件（综合版），支持**汇取云**和**Runninghub**两大 API 生图渠道。
 
 作者：@ricksf
 
 ---
 
-## 📦 包含节点
+## 📦 节点说明
 
-### 1. 汇取云生图 🏞️
+### 🙅GPT_image_2_综合@ricksf
 
-使用汇取云 API 生成图片。
+在单个节点中支持所有功能：
 
-| 参数 | 说明 |
-|------|------|
-| API密钥 | 汇取云 API Key |
-| 提示词 | 生成图片的描述 |
-| 模型 | gpt-image-2（¥0.068/次）/ gpt-image-2-FL（¥0.045/次）/ gpt-image-2「备用」（¥0.085/次） |
-| 输出格式 | url / b64_json |
-
-**API 配置：**
-- 地址：`https://api.bjhuiqu.net/v1/images/generations`
-- 仅支持文生图
+- **API渠道**：汇取云 / Runninghub
+- **模式**：有参考图自动切换图生图，无参考图自动切换文生图
+- **参考图**：最多支持4张参考图
 
 ---
 
-### 2. Runninghub 文生图 🌅
+## 💰 价格
 
-使用 Runninghub API 从文字生成图片。
-
-| 参数 | 说明 |
-|------|------|
-| API密钥 | Runninghub API Key |
-| 提示词 | 生成图片的描述 |
-| 比例 | 1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 21:9 |
-| 分辨率 | 1k / 2k |
-
-**API 配置：**
-- 地址：`https://www.runninghub.cn/openapi/v2/rhart-image-g-2/text-to-image`
-- 价格：¥0.1/次
-
----
-
-### 3. Runninghub 图生图 🖼️
-
-使用 Runninghub API 基于参考图片生成新图片。
-
-| 参数 | 说明 |
-|------|------|
-| API密钥 | Runninghub API Key |
-| 提示词 | 生成图片的描述 |
-| 参考图 | 输入的参考图片 |
-| 比例 | 1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 21:9 |
-| 分辨率 | 1k / 2k |
-
-**API 配置：**
-- 地址：`https://www.runninghub.cn/openapi/v2/rhart-image-g-2/image-to-image`
-- 价格：¥0.1/次
-
----
-
-### 4. GPT Image 2 综合版
-
-支持在单个节点中选择 API 渠道和模式。
-
-- 支持：汇取云 / Runninghub
-- Runninghub 自动判断：有参考图→图生图，无参考图→文生图
-
----
-
-### 5. GPT Image 2 官方稳定版
-
-功能完整的稳定版本，支持所有生图模式。
-
-- 汇取云：仅文生图
-- Runninghub：文生图 / 图生图
+| API | 模式 | 价格 |
+|-----|------|------|
+| 汇取云 | 文生图/图生图 | ¥0.068/次 |
+| Runninghub | 文生图/图生图 | ¥0.1/次 |
 
 ---
 
@@ -88,30 +37,73 @@ GPT Image 2 生图节点插件，支持**汇取云**和**Runninghub**两大 API 
 
 ```bash
 cd ComfyUI/custom_nodes/
-git clone https://github.com/T8mars/gpt-image2-ricksf.git
+git clone https://github.com/rickSF/gpt-image2-ricksf.git
 ```
 
 ---
 
-## 💰 价格对比
+## ⚙️ API Key 配置
 
-| API | 模型/接口 | 价格 |
-|-----|----------|------|
-| 汇取云 | gpt-image-2 | ¥0.068/次 |
-| 汇取云 | gpt-image-2-FL | ¥0.045/次 |
-| 汇取云 | gpt-image-2「备用」 | ¥0.085/次 |
-| Runninghub | rhart-image-g-2/text-to-image | ¥0.1/次 |
-| Runninghub | rhart-image-g-2/image-to-image | ¥0.1/次 |
+节点支持两种 API Key 配置方式：
+
+### 方式一：config.json 配置（推荐）
+
+在节点目录下创建或编辑 `config.json`：
+
+```json
+{
+  "huiqu_api_key": "你的汇取云API密钥",
+  "runninghub_api_key": "你的Runninghub API密钥",
+  "备注": "API密钥配置，优先读取此文件，没有则读取节点输入。成功运行一次后会根据节点输入自动更新对应渠道的Key。"
+}
+```
+
+### 方式二：节点输入
+
+直接在节点输入框填写 API 密钥。成功后会自动保存到 `config.json`。
+
+---
+
+## 📐 参数说明
+
+| 参数 | 说明 | 备注 |
+|------|------|------|
+| API渠道 | 选择生图渠道 | 汇取云 / Runninghub |
+| API密钥 | API Key | 支持 config.json 读取 |
+| 提示词 | 图片生成描述 | |
+| 参考图1-4 | 参考图片（可选） | 有参考图自动切换图生图 |
+| 比例 | 输出图片比例 | auto / 1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 3:2 / 2:3 / 21:9 |
+| 分辨率 | 输出清晰度 | 1k / 2k / 4k |
+| 模型 | 选择模型 | 仅汇取云可用 |
+
+---
+
+## 🔌 API 端点
+
+### 汇取云
+
+- **地址**：`https://api.bjhuiqu.net/v1/images/generations`
+- **认证**：`Authorization: Bearer <API_KEY>`
+- **Content-Type**：`application/json`
+- **图生图**：图片作为 base64 字符串数组通过 `image` 字段传递
+
+### Runninghub
+
+- **文生图**：`POST https://www.runninghub.cn/openapi/v2/rhart-image-g-2/text-to-image`
+- **图生图**：`POST https://www.runninghub.cn/openapi/v2/rhart-image-g-2/image-to-image`
+- **查询**：`POST https://www.runninghub.cn/openapi/v2/query`
+- **认证**：`Authorization: Bearer <API_KEY>`
+- **图生图**：图片作为 base64 data URI 数组通过 `imageUrls` 字段传递
 
 ---
 
 ## 📝 使用示例
 
-1. 选择 API 渠道（汇取云/Runninghub）
-2. 填写 API 密钥
+1. 配置 API Key（通过 config.json 或节点输入）
+2. 选择 API 渠道
 3. 输入提示词
 4. 选择比例和分辨率
-5. 执行节点生成图片
+5. 有参考图则自动进行图生图，无参考图则进行文生图
 
 ---
 
