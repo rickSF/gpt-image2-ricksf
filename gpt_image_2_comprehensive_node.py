@@ -228,7 +228,7 @@ class RicksfGPTImage2ComprehensiveNode:
             print(f"[汇取云] image字段长度: {len(image_base64_list[0]) if image_base64_list else 0}")
 
         print(f"[汇取云] size={size_value}, aspect_ratio={aspect_ratio}, is_img2img={is_img2img}")
-        print(f"[汇取云] payload keys: {list(payload.keys())}")
+        print(f"[汇取云] payload: {payload}")
 
         json_data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
