@@ -1,13 +1,13 @@
 """
 gpt-image2-ricksf - GPT Image 2 生图节点插件
 支持汇取云和 Runninghub 两大 API 生图渠道
-- 汇取云：gpt-image-2 ¥0.068/次
-- Runninghub：文生图/图生图 ¥0.1/次
+- 汇取云：gpt-image-2 ¥0.068/次（文生图/图生图）
+- Runninghub：¥0.1/次（文生图/图生图）
 
 有参考图自动选择图生图，无参考图自动选择文生图
 
 作者：@ricksf
-版本：v1.0.0
+版本：v2.0.0
 """
 
 from .gpt_image_2_comprehensive_node import (
@@ -32,7 +32,7 @@ print("  🎨 gpt-image2-ricksf 节点加载完成!")
 print("=" * 60)
 print(f"  🙅 GPT Image 2 综合版：{len(NODE_CLASS_MAPPINGS)} 个节点")
 print(f"  🌐 API渠道：汇取云 / Runninghub")
-print(f"  💰 汇取云：gpt-image-2 ¥0.068/次")
+print(f"  💰 汇取云：gpt-image-2 ¥0.068/次（文生图/图生图）")
 print(f"  💰 Runninghub：¥0.1/次（文生图/图生图）")
 print(f"  👨‍🏫 作者：@ricksf")
 print("=" * 60)

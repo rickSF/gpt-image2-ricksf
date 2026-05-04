@@ -6,9 +6,6 @@ import os
 import urllib.request
 import urllib.error
 import torch
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import numpy as np
 from io import BytesIO
 from PIL import Image
@@ -33,7 +30,7 @@ def load_config():
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[综合节点] 读取配置文件失败: {e}")
+            print(f"[ricksf节点] 读取配置文件失败: {e}")
     return {}
 
 
@@ -42,20 +39,9 @@ def save_config(config):
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-        print(f"[综合节点] 配置已保存到 {CONFIG_FILE}")
+        print(f"[ricksf节点] 配置已保存到 {CONFIG_FILE}")
     except Exception as e:
-        print(f"[综合节点] 保存配置文件失败: {e}")
-
-# 创建带重试的 session
-_session = requests.Session()
-_retry = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
-_adapter = HTTPAdapter(max_retries=_retry)
-_session.mount("http://", _adapter)
-_session.mount("https://", _adapter)
-
-
-def tensor2pil(image):
-    return [Image.fromarray(np.clip(255.0 * img.cpu().numpy().squeeze(), 0, 255).astype(np.uint8)) for img in image]
+        print(f"[ricksf节点] 保存配置文件失败: {e}")
 
 
 def pil2tensor(image):
@@ -76,12 +62,12 @@ def downscale_input(image):
     return scaled.movedim(1, -1)
 
 
-class DapaoGPTImage2ComprehensiveNode:
-    """GPT Image 2 综合节点
+class RicksfGPTImage2ComprehensiveNode:
+    """GPT Image 2 综合节点 @ricksf
     支持汇取云和 Runninghub 两大 API 生图渠道
 
-    - 汇取云：gpt-image-2 ¥0.068/次（仅文生图）
-    - Runninghub：文生图/图生图 ¥0.1/次
+    - 汇取云：gpt-image-2 ¥0.068/次（文生图/图生图）
+    - Runninghub：¥0.1/次（文生图/图生图）
 
     有参考图自动选择图生图，无参考图自动选择文生图
     """
@@ -113,7 +99,7 @@ class DapaoGPTImage2ComprehensiveNode:
     DESCRIPTION = "GPT Image 2 综合版 @ricksf"
 
     def __init__(self):
-        self.timeout = 900
+        self.timeout = 360  # 6分钟超时
 
     def _blank_tensor(self):
         blank = Image.new("RGB", (1024, 1024), color="white")
@@ -126,36 +112,85 @@ class DapaoGPTImage2ComprehensiveNode:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 img_data = resp.read()
-            print(f"[综合节点] 下载图片 大小: {len(img_data)} bytes")
+            print(f"[ricksf节点] 下载图片 大小: {len(img_data)} bytes")
 
             img = Image.open(BytesIO(img_data)).convert("RGB")
             img_array = np.array(img).astype(np.float32) / 255.0
             img_tensor = torch.from_numpy(img_array)[None]
-            print(f"[综合节点] 图片尺寸: {img.size}, tensor shape: {img_tensor.shape}")
+            print(f"[ricksf节点] 图片尺寸: {img.size}, tensor shape: {img_tensor.shape}")
             return img_tensor
         except Exception as e:
-            print(f"[综合节点] 下载图片失败 {url}: {e}")
+            print(f"[ricksf节点] 下载图片失败 {url}: {e}")
             return None
 
     def _image_to_base64(self, image_tensor):
         """将 IMAGE tensor 转换为 base64 data URI"""
-        # 直接转换，不做缩放，与参考代码一致
-        img_array = image_tensor[0].cpu().numpy()  # shape: [H, W, C]
+        img_array = image_tensor[0].cpu().numpy()
         img_array = (img_array * 255).clip(0, 255).astype(np.uint8)
         img_pil = Image.fromarray(img_array)
         if img_pil.mode != "RGB":
             img_pil = img_pil.convert("RGB")
-        from io import BytesIO
         buf = BytesIO()
         img_pil.save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-    def _huiqu_generate(self, api_key, model, prompt, pbar):
-        """汇取云生图（仅文生图）"""
+    def _upload_image_to_runninghub(self, image_tensor, api_key):
+        """上传图片到 Runninghub，返回 download_url"""
         import urllib.request
-        import urllib.parse
 
-        url = f"{HUIQU_BASE_URL}/images/generations"
+        img_array = image_tensor[0].cpu().numpy()
+        img_array = (img_array * 255).clip(0, 255).astype(np.uint8)
+        img_pil = Image.fromarray(img_array)
+        if img_pil.mode != "RGB":
+            img_pil = img_pil.convert("RGB")
+
+        # 保存为临时文件
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img_pil.save(tmp.name, "PNG")
+            tmp_path = tmp.name
+
+        try:
+            # 上传图片
+            with open(tmp_path, "rb") as f:
+                img_data = f.read()
+
+            boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+            body = f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image.png\"\r\nContent-Type: image/png\r\n\r\n".encode() + img_data + f"\r\n--{boundary}--\r\n".encode()
+
+            req = urllib.request.Request(
+                f"{RUNNINGHUB_BASE_URL}/media/upload/binary",
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {api_key.strip()}",
+                    "Content-Type": f"multipart/form-data; boundary={boundary}",
+                }
+            )
+
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+
+            print(f"[ricksf节点] 上传图片响应: {json.dumps(result, ensure_ascii=False)[:300]}")
+
+            if result.get("code") == 0 and result.get("data", {}).get("download_url"):
+                return result["data"]["download_url"]
+            return None
+        except Exception as e:
+            print(f"[ricksf节点] 上传图片失败: {e}")
+            return None
+        finally:
+            os.unlink(tmp_path)
+
+    def _huiqu_generate(self, api_key, model, prompt, image_urls, is_img2img, pbar):
+        """汇取云生图（文生图/图生图）"""
+        import urllib.request
+
+        if is_img2img:
+            url = f"{HUIQU_BASE_URL}/images/image-to-image"
+        else:
+            url = f"{HUIQU_BASE_URL}/images/generations"
+
         payload = {
             "model": model,
             "prompt": prompt,
@@ -164,9 +199,12 @@ class DapaoGPTImage2ComprehensiveNode:
             "response_format": "url"
         }
 
+        if is_img2img and image_urls:
+            payload["imageUrls"] = image_urls
+
         print(f"[汇取云] 发送请求...")
         print(f"[汇取云] URL: {url}")
-        print(f"[汇取云] Model: {model}")
+        print(f"[汇取云] Model: {model}, 图生图: {is_img2img}")
 
         json_data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
@@ -186,6 +224,12 @@ class DapaoGPTImage2ComprehensiveNode:
             print(f"[汇取云] HTTP错误: {e.code} - {e.reason}")
             error_body = e.read().decode("utf-8") if e.fp else ""
             print(f"[汇取云] 错误响应: {error_body[:500]}")
+
+            # 如果图生图失败，尝试上传图片到 Runninghub 获取 URL
+            if is_img2img and image_urls and any(u.startswith("data:") for u in image_urls):
+                print(f"[汇取云] 图生图 base64 方式失败，尝试上传到 Runninghub...")
+                return None, "图生图需要上传图片，请确保 Runninghub 可用"
+
             return None, f"API请求失败: {e.code} {e.reason}"
         except Exception as e:
             print(f"[汇取云] 请求异常: {e}")
@@ -198,7 +242,6 @@ class DapaoGPTImage2ComprehensiveNode:
         if "data" in result and len(result["data"]) > 0:
             image_url = result["data"][0].get("url", "")
         if not image_url:
-            # 尝试其他可能的字段
             image_url = result.get("url") or result.get("image_url") or result.get("output_url", "")
 
         if not image_url:
@@ -209,18 +252,18 @@ class DapaoGPTImage2ComprehensiveNode:
         if tensor is None:
             return None, "图片下载失败"
 
-        return tensor, f"成功 | 汇取云 | {model} | {image_url[:50]}..."
+        mode = "图生图" if is_img2img else "文生图"
+        return tensor, f"成功 | 汇取云{mode} | {model} | {image_url[:50]}..."
 
     def _runninghub_submit(self, api_key, prompt, image_urls, aspect_ratio, resolution, is_img2img, api_source="Runninghub"):
         """提交 Runninghub 任务"""
         import urllib.request
-        import urllib.parse
 
-        # Runninghub 不支持 "auto" 和 "3:2", "2:3", "3:4", "9:21"，需要转换
+        # Runninghub 不支持 "auto" 和部分比例，需要转换
         if api_source == "Runninghub":
             valid_ratios = ["3:2", "1:1", "2:3", "5:4", "4:5", "16:9", "9:16", "21:9", "3:4", "4:3", "9:21"]
             if aspect_ratio == "auto" or aspect_ratio not in valid_ratios:
-                aspect_ratio = "1:1"  # 默认使用 1:1
+                aspect_ratio = "1:1"
 
         payload = {
             "prompt": prompt.strip(),
@@ -264,7 +307,6 @@ class DapaoGPTImage2ComprehensiveNode:
 
         print(f"[Runninghub] 提交响应: {json.dumps(result, ensure_ascii=False)[:500]}")
 
-        # 响应可能直接包含 status 和 results（成功时）
         task_id = result.get("taskId", "")
         if not task_id:
             return None, f"无taskId: {result}"
@@ -325,7 +367,6 @@ class DapaoGPTImage2ComprehensiveNode:
             kwargs.get("🖼️ 参考图3"),
             kwargs.get("🖼️ 参考图4"),
         ]
-        # 只保留非空的参考图
         valid_images = [img for img in input_images if img is not None]
         is_img2img = len(valid_images) > 0
 
@@ -358,21 +399,43 @@ class DapaoGPTImage2ComprehensiveNode:
             image_tensor = None
 
             if api_source == "汇取云":
-                # 汇取云仅支持文生图，有参考图则提示用户
+                image_urls = []
                 if is_img2img:
-                    return (blank_tensor, "汇取云仅支持文生图，请使用 Runninghub 图生图（有参考图自动切换）", "", "")
-                image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, pbar)
+                    # 汇取云图生图：先尝试 base64，如果失败则上传到 Runninghub 获取 URL
+                    base64_urls = []
+                    for img in valid_images:
+                        image_base64 = self._image_to_base64(img)
+                        base64_urls.append(f"data:image/png;base64,{image_base64}")
+                    print(f"[ricksf节点] 已转换 {len(base64_urls)} 张参考图为 base64")
+
+                    # 尝试使用 base64
+                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, base64_urls, True, pbar)
+
+                    if image_tensor is None and "base64" in result_info.lower():
+                        # base64 失败，尝试上传到 Runninghub
+                        print(f"[ricksf节点] 汇取云图生图 base64 失败，尝试上传到 Runninghub...")
+                        upload_urls = []
+                        for img in valid_images:
+                            upload_url = self._upload_image_to_runninghub(img, api_key)
+                            if upload_url:
+                                upload_urls.append(upload_url)
+                            else:
+                                return (blank_tensor, f"图片上传 Runninghub 失败", "", "")
+
+                        if upload_urls:
+                            print(f"[ricksf节点] 已上传 {len(upload_urls)} 张图片到 Runninghub")
+                            image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, upload_urls, True, pbar)
+                else:
+                    image_tensor, result_info = self._huiqu_generate(api_key, model, prompt, [], False, pbar)
 
             elif api_source == "Runninghub":
-                # 构建参考图 URL 列表
                 image_urls = []
 
                 if is_img2img:
-                    # 将参考图转为 base64
                     for img in valid_images:
                         image_base64 = self._image_to_base64(img)
                         image_urls.append(f"data:image/png;base64,{image_base64}")
-                    print(f"[Runninghub] 已转换 {len(image_urls)} 张参考图为 base64")
+                    print(f"[ricksf节点] 已转换 {len(image_urls)} 张参考图为 base64")
 
                 # 提交任务
                 task_id, error = self._runninghub_submit(api_key, prompt, image_urls, aspect_ratio, resolution, is_img2img, api_source)
@@ -382,9 +445,9 @@ class DapaoGPTImage2ComprehensiveNode:
 
                 print(f"[Runninghub] 任务提交成功 taskId={task_id}")
 
-                # 轮询
+                # 轮询（6分钟 = 360秒）
                 pbar.update_absolute(30)
-                max_wait = 180
+                max_wait = 360
                 waited = 0
 
                 while True:
@@ -419,7 +482,7 @@ class DapaoGPTImage2ComprehensiveNode:
                     if waited >= max_wait:
                         return (blank_tensor, f"超时 {waited}s, 状态: {status}", "", "")
 
-                    pbar.update_absolute(min(70, 30 + int(waited * 0.2)))
+                    pbar.update_absolute(min(70, 30 + int(waited * 0.1)))
 
             pbar.update_absolute(100)
 
@@ -430,24 +493,24 @@ class DapaoGPTImage2ComprehensiveNode:
                     save_config(config)
 
                 # 更新历史
-                if DapaoGPTImage2ComprehensiveNode._last_generated_image_urls:
-                    DapaoGPTImage2ComprehensiveNode._last_generated_image_urls += "\n" + result_info
+                if RicksfGPTImage2ComprehensiveNode._last_generated_image_urls:
+                    RicksfGPTImage2ComprehensiveNode._last_generated_image_urls += "\n" + result_info
                 else:
-                    DapaoGPTImage2ComprehensiveNode._last_generated_image_urls = result_info
+                    RicksfGPTImage2ComprehensiveNode._last_generated_image_urls = result_info
 
-                history = DapaoGPTImage2ComprehensiveNode._last_generated_image_urls
+                history = RicksfGPTImage2ComprehensiveNode._last_generated_image_urls
                 return (image_tensor, result_info, result_info.split("|")[-1].strip(), history)
 
             return (blank_tensor, result_info if result_info else "生成失败", "", "")
 
         except Exception as e:
             error_msg = f"执行失败: {str(e)}"
-            print(f"[综合节点] {error_msg}")
+            print(f"[ricksf节点] {error_msg}")
             return (blank_tensor, error_msg, "", "")
 
 
 NODE_CLASS_MAPPINGS = {
-    "🙅GPT_image_2_综合@ricksf": DapaoGPTImage2ComprehensiveNode,
+    "🙅GPT_image_2_综合@ricksf": RicksfGPTImage2ComprehensiveNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
